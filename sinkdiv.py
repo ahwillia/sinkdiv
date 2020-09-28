@@ -116,6 +116,7 @@ class OTCost:
             + self.margdiv(self.P_.sum(axis=0), b)
             + self.eps * inner_prod(self.P_, M)
             # this ^^ is same as, self.eps * inner_prod(P, log(P) - log(a)[:, None] - jx.log(b)[None, :])
+            # + self.eps * inner_prod(self.P_, jx.log(self.P_) - jx.log(a)[:, None] - jx.log(b)[None, :])
         )
 
 
@@ -243,7 +244,14 @@ def test_2():
     a = np.squeeze(np.exp(-x ** 2))
     b = np.squeeze(np.exp(-y ** 2))
 
-    for eps in (0.001, 0.1, 1.0):
+    print("DUALITY GAP SHOULD BE ZERO...")
+    for eps in (0.01, 0.1, 1.0):
         ot = OTCost(margdiv, eps, 1e-6).fit(a, x, b, y)
         print("EPS = {}; Duality Gap = {}".format(
             eps, ot.primal_obj_ - ot.dual_obj_))
+
+    print("\nDUAL OBJECTIVE SHOULD BE NONNEGATIVE...")
+    for eps in (0.01, 0.1, 1.0):
+        ot = OTCost(margdiv, eps, 1e-6).fit(a, x, b, y)
+        print("EPS = {}; Dual Objective = {}".format(
+            eps, ot.dual_obj_))
