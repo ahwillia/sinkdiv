@@ -21,6 +21,21 @@ def softmin(x, u, eps, axis):
 
 # === MAIN FUNCTIONS ==== #
 
+class Balanced:
+
+    def __call__(self, p, q):
+        return 0.0 if np.allclose(p, q) else np.inf
+
+    def ent(self, t):
+        return 0.0 if np.allclose(t, 1) else np.inf
+
+    def conj_ent(self, z):
+        return z
+
+    def aprox(self, p, eps):
+        return p
+
+
 class ForwardKL:
     """
     Scaled forward KL divergence.
@@ -255,3 +270,31 @@ def test_2():
         ot = OTCost(margdiv, eps, 1e-6).fit(a, x, b, y)
         print("EPS = {}; Dual Objective = {}".format(
             eps, ot.dual_obj_))
+
+
+def test_3():
+    """
+    Check balanced case
+    """
+
+    margdiv = Balanced()
+    x = np.linspace(-4, 4, 51)[:, None]
+    y = np.linspace(-4, 4, 50)[:, None]
+    a = np.squeeze(np.exp(-x ** 2))
+    b = np.squeeze(np.exp(-y ** 2))
+
+    a /= a.sum()
+    b /= b.sum()
+
+    print("DUALITY GAP SHOULD BE ZERO...")
+    for eps in (0.01, 0.1, 1.0):
+        ot = OTCost(margdiv, eps, 1e-6).fit(a, x, b, y)
+        print("EPS = {}; Duality Gap = {}".format(
+            eps, ot.primal_obj_ - ot.dual_obj_))
+
+    print("\nDUAL OBJECTIVE SHOULD BE NONNEGATIVE...")
+    for eps in (0.01, 0.1, 1.0):
+        ot = OTCost(margdiv, eps, 1e-6).fit(a, x, b, y)
+        print("EPS = {}; Dual Objective = {}".format(
+            eps, ot.dual_obj_))
+
