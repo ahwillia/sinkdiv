@@ -4,6 +4,7 @@ import numpy as jx
 from scipy.special import logsumexp
 import numpy as np
 from scipy.spatial.distance import pdist, cdist, squareform
+from numpy.testing import assert_allclose
 
 EPS = 1e-8
 
@@ -56,7 +57,7 @@ class ForwardKL:
         return self.lam * (jx.exp(z / self.lam) - 1)
 
     def aprox(self, p, eps):
-        return (self.lam * p) / (self.lam + eps)
+        return p * (self.lam / (self.lam + eps))
         # return p / (1 + eps / self.lam)
 
 
@@ -120,22 +121,28 @@ class OTCost:
         log_P = jx.log(a)[:, None] + jx.log(b)[None, :] + M
         self.P_ = jx.exp(log_P)
 
+        # !! Sanity check   !!
+        # assert_allclose(self.P_, (a[:, None] * b[None, :]) * np.exp(M))
+
         # Compute dual objective.
         self.dual_obj_ = (
             - inner_prod(a, self.margdiv.conj_ent(-self.w_))
             - inner_prod(b, self.margdiv.conj_ent(-self.h_))
-            + self.eps * jx.sum(self.P_)
-            - self.eps * jx.sum(a[:, None] * b[None, :])
+            - self.eps * jx.sum(self.P_)
+            + self.eps * jx.sum(a[:, None] * b[None, :])
         )
+
+        kl = ForwardKL(1.0)
 
         # Compute primal objective.
         self.primal_obj_ = (
             inner_prod(self.C_, self.P_)
             + self.margdiv(self.P_.sum(axis=1), a)
             + self.margdiv(self.P_.sum(axis=0), b)
-            + self.eps * inner_prod(self.P_, M)
+            # + self.eps * inner_prod(self.P_, M)
             # this ^^ is same as, self.eps * inner_prod(P, log(P) - log(a)[:, None] - jx.log(b)[None, :])
-            # + self.eps * inner_prod(self.P_, jx.log(self.P_) - jx.log(a)[:, None] - jx.log(b)[None, :])
+            # + self.eps * inner_prod(self.P_, jx.log(self.P_) - jx.log(a)[:, None] - jx.log(b)[None , :])
+            + self.eps * kl(self.P_, a[:, None] * b[None, :])
         )
 
 
@@ -203,6 +210,7 @@ def asymmetric_sinkhorn(w, h, a, b, C, eps, margdiv, thres):
         h = h1
 
     return w, h
+
 
 def symmetric_sinkhorn(w, a, C, eps, margdiv, thres):
 
