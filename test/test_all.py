@@ -44,26 +44,26 @@ def test_entropy_increases(make_fig=False):
         plt.show()
 
 
-@pytest.mark.parametrize('eps', [0.01, 0.1, 1.0])
-@pytest.mark.parametrize('tol', [1e-6])
-def test_balanced_duality_gap(eps, tol):
-    """
-    Check agreement between primal and dual objectives,
-    balanced transport case.
-    """
-    np.random.seed(1234)
+# @pytest.mark.parametrize('eps', [0.01, 0.1, 1.0])
+# @pytest.mark.parametrize('tol', [1e-6])
+# def test_balanced_duality_gap(eps, tol):
+#     """
+#     Check agreement between primal and dual objectives,
+#     balanced transport case.
+#     """
+#     np.random.seed(1234)
 
-    margdiv = Balanced()
-    x = np.linspace(-4, 4, 51)[:, None]
-    y = np.linspace(-4, 4, 50)[:, None]
-    a = np.squeeze(np.exp(-x ** 2))
-    b = np.squeeze(np.exp(-y ** 2))
+#     margdiv = Balanced()
+#     x = np.linspace(-4, 4, 51)[:, None]
+#     y = np.linspace(-4, 4, 50)[:, None]
+#     a = np.squeeze(np.exp(-x ** 2))
+#     b = np.squeeze(np.exp(-y ** 2))
 
-    a /= a.sum()
-    b /= b.sum()
+#     a /= a.sum()
+#     b /= b.sum()
 
-    ot = OTCost(margdiv, eps, tol).fit(a, x, b, y)
-    assert_allclose(ot.primal_obj_, ot.dual_obj_, atol=1e-3)
+#     ot = OTCost(margdiv, eps, tol).fit(a, x, b, y)
+#     assert_allclose(ot.primal_obj_, ot.dual_obj_, atol=1e-3)
 
 
 @pytest.mark.parametrize('seed', [123])

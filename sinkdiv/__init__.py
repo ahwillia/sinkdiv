@@ -189,8 +189,7 @@ def asymmetric_sinkhorn(w, h, a, b, C, eps, margdiv, thres):
     
     converged = False
 
-    # while not converged:
-    for itr in range(10000):
+    while not converged:
         
         # Compute new params
         w1 = -margdiv.aprox(
