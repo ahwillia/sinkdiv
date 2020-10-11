@@ -56,6 +56,9 @@ class ForwardKL:
     def conj_ent(self, z):
         return self.lam * (jx.exp(z / self.lam) - 1)
 
+    def grad_conj_ent(self, z):
+        return jx.exp(z / self.lam)
+
     def aprox(self, p, eps):
         return p * (self.lam / (self.lam + eps))
         # return p / (1 + eps / self.lam)
@@ -121,9 +124,6 @@ class OTCost:
         log_P = jx.log(a)[:, None] + jx.log(b)[None, :] + M
         self.P_ = jx.exp(log_P)
 
-        # !! Sanity check   !!
-        # assert_allclose(self.P_, (a[:, None] * b[None, :]) * np.exp(M))
-
         # Compute dual objective.
         self.dual_obj_ = (
             - inner_prod(a, self.margdiv.conj_ent(-self.w_))
@@ -132,18 +132,29 @@ class OTCost:
             + self.eps * jx.sum(a[:, None] * b[None, :])
         )
 
-        kl = ForwardKL(1.0)
-
         # Compute primal objective.
+        kl = ForwardKL(1.0)
         self.primal_obj_ = (
             inner_prod(self.C_, self.P_)
             + self.margdiv(self.P_.sum(axis=1), a)
             + self.margdiv(self.P_.sum(axis=0), b)
-            # + self.eps * inner_prod(self.P_, M)
-            # this ^^ is same as, self.eps * inner_prod(P, log(P) - log(a)[:, None] - jx.log(b)[None, :])
-            # + self.eps * inner_prod(self.P_, jx.log(self.P_) - jx.log(a)[:, None] - jx.log(b)[None , :])
             + self.eps * kl(self.P_, a[:, None] * b[None, :])
         )
+
+        # Compute gradient with respect to mass vector a
+        self.grad_a_ = (
+            - self.margdiv.conj_ent(-self.w_)
+            - self.eps * self.margdiv.grad_conj_ent(-self.w_)
+            + self.eps * b.sum()
+        )
+
+        # Compute gradient with respect to mass vector b
+        self.grad_b_ = (
+            - self.margdiv.conj_ent(-self.h_)
+            - self.eps * self.margdiv.grad_conj_ent(-self.h_)
+            + self.eps * a.sum()
+        )
+
 
 
 class SinkDiv:

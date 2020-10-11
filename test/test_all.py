@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose
 from sinkdiv import OTCost, ForwardKL, Balanced
+from scipy.optimize import approx_fprime
 
 
 def test_entropy_increases(make_fig=False):
@@ -146,7 +147,6 @@ def test_unbalanced_kl_duality_gap(seed, eps, lam, b_mass, tol):
     Compare transport plan to Python Optimal Transpot (POT)
     library.
     """
-    from ot.unbalanced import sinkhorn_stabilized_unbalanced
     rs = np.random.RandomState(seed)
 
     # Random locations for atoms.
@@ -167,3 +167,55 @@ def test_unbalanced_kl_duality_gap(seed, eps, lam, b_mass, tol):
 
     # Duality gap should be small.
     assert_allclose(otcost.primal_obj_, otcost.dual_obj_, atol=1e-4)
+
+
+@pytest.mark.parametrize('seed', [123])
+@pytest.mark.parametrize('eps', [0.1, 1.0, 10])
+@pytest.mark.parametrize('lam', [0.1, 1.0, 10])
+@pytest.mark.parametrize('b_mass', [0.5, 1.0, 2.0])
+@pytest.mark.parametrize('tol', [1e-6])
+def test_ot_kl_gradients(seed, eps, lam, b_mass, tol):
+    """
+    Compare transport plan to Python Optimal Transpot (POT)
+    library.
+    """
+    rs = np.random.RandomState(seed)
+
+    # Random locations for atoms.
+    x = rs.randn(25, 1)
+    y = rs.randn(24, 1)
+
+    # Random mass vectors.
+    a = np.random.rand(x.size)
+    b = np.random.rand(y.size)
+
+    # Normalize masses.
+    a *= (1.0 / a.sum())
+    b *= (b_mass / b.sum())
+
+    # Calculate OT cost.
+    margdiv = ForwardKL(lam)
+    otcost = OTCost(margdiv, eps, tol)
+
+    # Fit OT cost, compute gradients for a and b.
+    otcost.fit(a, x, b, y)
+    grad_a = otcost.grad_a_.copy()
+    grad_b = otcost.grad_b_.copy()
+
+    # Compute gradient of a by finite differencing.
+    def f(a_):
+        otcost.fit(a_, x, b, y)
+        return otcost.primal_obj_
+    approx_grad_a = approx_fprime(a, f, np.sqrt(np.finfo(float).eps))
+
+    # Check gradients approximately match finite differencing.
+    assert_allclose(grad_a, approx_grad_a, atol=1e-4, rtol=1e-3)
+
+    # Function to compute otcost given mass vector b.
+    def g(b_):
+        otcost.fit(a, x, b_, y)
+        return otcost.primal_obj_
+    approx_grad_b = approx_fprime(b, g, np.sqrt(np.finfo(float).eps))
+
+    # Check gradients approximately match finite differencing.
+    assert_allclose(grad_b, approx_grad_b, atol=1e-4, rtol=1e-3)
