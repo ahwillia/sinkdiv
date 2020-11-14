@@ -169,7 +169,7 @@ def test_unbalanced_kl_duality_gap(seed, eps, lam, b_mass, tol):
     assert_allclose(otcost.primal_obj_, otcost.dual_obj_, atol=1e-4)
 
 
-@pytest.mark.parametrize('seed', [123])
+@pytest.mark.parametrize('seed', [123, 1234])
 @pytest.mark.parametrize('eps', [0.1, 1.0, 10])
 @pytest.mark.parametrize('lam', [0.1, 1.0, 10])
 @pytest.mark.parametrize('b_mass', [0.5, 1.0, 2.0])
