@@ -156,6 +156,107 @@ class OTCost:
         )
 
 
+class OTCost_balanced:
+    """
+    Class for specialized case where marginals have the same mass.
+    Gradients derived in Feydy et al. 2019.
+    This currently is a separte class because of the specific forms
+        of the gradients.
+    """
+
+    def __init__(self, eps, tol):
+        # The marginal divergence is hard-coded to the balanced case
+        self.margdiv = Balanced()
+        self.eps = eps
+        self.tol = tol
+
+    def fit(self, a, x, b=None, y=None):
+
+        # Fit symmetric optimal transport cost.
+        if (b is None) and (y is None):
+            self._symm_cost(a, x)
+        
+        # Fit asymmetric optimal transport cost.
+        else:
+            self._asymm_cost(a, x, b, y)
+
+        return self
+
+    def _symm_cost(self, a, x):
+
+        # Compute pairwise cost matrix.
+        self.C_ = jx.asarray(
+            squareform(pdist(x, metric="sqeuclidean")))
+
+        # Run fixed point iteration for symmetric case.
+        w0 = jx.zeros(a.size)
+        thres = self.tol * np.sqrt(a.size)
+        self.w_ = symmetric_sinkhorn(
+            w0, a, self.C_, self.eps, self.margdiv, thres
+        )
+
+        # In the symmetric case, the dual potentials match.
+        self.h_ = self.w_
+
+        # Evaluate the primal and dual objectives.
+        self._calc_objectives(a, b)
+
+    def _asymm_cost(self, a, x, b, y):
+
+        # Compute pairwise cost matrix
+        self.C_ = jx.asarray(cdist(x, y, metric="sqeuclidean"))
+
+        # Run classical Sinkhorn iterations, generalized for unbalanced marginal penalties.
+        w0, h0 = jx.zeros(a.size), jx.zeros(b.size)
+        thres = self.tol * np.sqrt(a.size + b.size)
+        self.w_, self.h_ = asymmetric_sinkhorn(
+            w0, h0, a, b, self.C_, self.eps, self.margdiv, thres
+        )
+
+        # Evaluate the primal and dual objectives.
+        self._calc_objectives(a, b)
+
+    def _calc_objectives(self, a, b, x, y):
+
+        # Compute transport plan.
+        M = (self.w_[:, None] + self.h_[None, :] - self.C_) / self.eps
+        log_P = jx.log(a)[:, None] + jx.log(b)[None, :] + M
+        self.P_ = jx.exp(log_P)
+
+        # Compute dual objective.
+        self.dual_obj_ = (
+            - inner_prod(a, self.margdiv.conj_ent(-self.w_))
+            - inner_prod(b, self.margdiv.conj_ent(-self.h_))
+            - self.eps * jx.sum(self.P_)
+            + self.eps * jx.sum(a[:, None] * b[None, :])
+        )
+
+        # Compute primal objective.
+        kl = ForwardKL(1.0)
+        self.primal_obj_ = (
+            inner_prod(self.C_, self.P_)
+            + self.margdiv(self.P_.sum(axis=1), a)
+            + self.margdiv(self.P_.sum(axis=0), b)
+            + self.eps * kl(self.P_, a[:, None] * b[None, :])
+        )
+
+        # These gradients still need to be validated
+        # Compute gradient with respect to mass vector a
+        self.grad_a_ = self.w_
+
+        # Compute gradient with respect to mass vector b
+        self.grad_b_ = self.h_
+
+        # Compute gradient with respect to position vector x
+        # Will grad work because logsumexp was imported from scipy?
+        phi_x = lambda x0: -softmin(self.C - self.h_[None, :], b[None, :], eps, axis=1)
+        self.grad_x_ = jx.grad(phi_x)(x)
+
+        # Compute gradient with respect to position vector y
+        phi_y = lambda y0: -softmin(self.C - self.w_[:, None], a[:, None], eps, axis=0)
+        self.grad_y_ = jx.grad(phi_y)(y)
+
+
 
 class SinkDiv:
     """
